@@ -19,7 +19,7 @@ pytest
 ipdb
 tqdm
 numba
-mmcv-full
+# mmcv-full
 imagecorruptions
 pyassimp==4.1.3  # 4.1.4 will cause egl_renderer SegmentFault
 pypng
@@ -37,7 +37,7 @@ timm==0.6.7
 glfw
 imageio
 imageio-ffmpeg
-PyOpenGL  # >=3.1.5
+PyOpenGL==3.1.5  # >=3.1.5
 PyOpenGL_accelerate
 chardet
 
@@ -45,7 +45,7 @@ thop  # https://github.com/Lyken17/pytorch-OpCounter
 loguru
 
 
-pytorch-lightning  # tested for 1.6.0.dev0
+pytorch-lightning==1.6.0  # tested for 1.6.0.dev0
 fairscale
 deepspeed
 

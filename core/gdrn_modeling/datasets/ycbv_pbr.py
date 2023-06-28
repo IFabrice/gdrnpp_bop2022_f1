@@ -42,6 +42,7 @@ class YCBV_PBR_Dataset:
             osp.join(DATASETS_ROOT, "BOP_DATASETS/ycbv/train_pbr"),
         )
         self.xyz_root = data_cfg.get("xyz_root", osp.join(self.dataset_root, "xyz_crop"))
+        print("#########################################################################################")
         assert osp.exists(self.dataset_root), self.dataset_root
         self.models_root = data_cfg["models_root"]  # BOP_DATASETS/ycbv/models
         self.scale_to_meter = data_cfg["scale_to_meter"]  # 0.001

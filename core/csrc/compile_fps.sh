@@ -8,4 +8,5 @@ echo ""
 echo "********build fps************"
 cd $this_dir/fps
 rm -rf build
+which python
 python setup.py

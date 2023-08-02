@@ -322,6 +322,11 @@ class GDRN_Online_DatasetFromList(Base_DatasetFromList):
         image = read_image_mmcv(dataset_dict["file_name"], format=self.img_format)
         if self.img_format == "L":
             image = np.expand_dims(image, 2).repeat(3, axis=2)
+        
+        # image should not be of NoneType
+        if image is None:
+            print("\n\n\n*********** Be carefull, I might be in a loop *************\n\n\n") 
+            return None 
 
         # should be consistent with the size in dataset_dict
         utils.check_image_size(dataset_dict, image)

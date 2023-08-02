@@ -21,6 +21,8 @@ id2obj = data_ref.id2obj
 def main():
     vertex_scale = 0.001
     fps_dict = {}
+    print("\n\n\n\n\n\n\n\n\n\n")
+
     for obj_id in tqdm(id2obj):
         print(obj_id)
         model_path = osp.join(model_dir, f"obj_{obj_id:06d}.ply")
@@ -38,7 +40,9 @@ def main():
 
     save_path = osp.join(model_dir, "fps_points.pkl")
     mmcv.dump(fps_dict, save_path)
+    print("\n\n\n\n\n\n\n\n\n\n\n\n\n")
     print(f"saved to {save_path}")
+    print("\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 
 
 if __name__ == "__main__":

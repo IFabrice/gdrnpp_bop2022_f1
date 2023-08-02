@@ -1,0 +1,4 @@
+use gpu ids: 0 num gpus: 1
+[2023-07-13 20:58:41,659] [INFO] [real_accelerator.py:110:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+You requested to import horovod which is missing or not supported for your OS.
+[0714_085844@main_gdrn:216] soft limit:  500000 hard limit:  1048576

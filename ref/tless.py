@@ -103,7 +103,7 @@ def get_models_info():
     assert osp.exists(models_info_path), models_info_path
     models_info = mmcv.load(models_info_path)  # key is str(obj_id)
     return models_info
-
+    
 
 # ref core/gdrn_modeling/tools/tless/tless_1_compute_fps.py
 def get_fps_points():

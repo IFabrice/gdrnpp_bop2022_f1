@@ -420,7 +420,7 @@ def load_and_print_val_scores_tab(
 
                 else:
                     logger.warning("{} does not exist.".format(score_root))
-                    raise RuntimeError("{} does not exist.".format(score_root))
+                    # raise RuntimeError("{} does not exist.".format(score_root))
 
         if len(big_tab_row) > 0:
             # row: obj in row

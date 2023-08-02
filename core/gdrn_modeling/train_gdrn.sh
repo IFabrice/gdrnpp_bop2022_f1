@@ -14,6 +14,22 @@ echo "use gpu ids: $CUDA_VISIBLE_DEVICES num gpus: $NGPU"
 NCCL_DEBUG=INFO
 OMP_NUM_THREADS=1
 MKL_NUM_THREADS=1
+
+
 PYTHONPATH="$this_dir/../..":$PYTHONPATH \
 CUDA_VISIBLE_DEVICES=$2 python $this_dir/main_gdrn.py \
-    --config-file $CFG --num-gpus $NGPU  ${@:3}
+    --config-file $CFG --num-gpus 1  ${@:3}
+
+# python -m pdb -c continue myscript.py
+
+
+# PYTHONPATH="$this_dir/../..":$PYTHONPATH \
+# CUDA_VISIBLE_DEVICES=$2 python $this_dir/main_gdrn.py \
+#     --config-file $CFG --num-gpus $NGPU  ${@:3}
+
+
+
+
+
+
+# python $this_dir/main_gdrn.py --config-file $CFG --num-gpus $NGPU  ${@:3}

@@ -942,6 +942,7 @@ def build_gdrn_test_loader(cfg, dataset_name, train_objs=None, sampler=None, bat
     else:
         if sampler is None:
             sampler = InferenceSampler(len(dataset))
+
     data_loader = torchdata.DataLoader(
         dataset,
         batch_size=batch_size,

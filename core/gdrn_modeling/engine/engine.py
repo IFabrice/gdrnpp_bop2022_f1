@@ -2,6 +2,7 @@ import logging
 import os
 import os.path as osp
 import torch
+import pdb
 
 # from torch.cuda.amp import autocast, GradScaler
 import mmcv
@@ -124,8 +125,8 @@ class GDRN_Lite(LightningLite):
 
         dataset_meta = MetadataCatalog.get(cfg.DATASETS.TRAIN[0])
         train_obj_names = dataset_meta.objs
-
         for dataset_name in cfg.DATASETS.TEST:
+            
             if epoch is not None and iteration is not None:
                 save_out_dir = osp.join(cfg.OUTPUT_DIR, f"inference_epoch_{epoch}_iter_{iteration}", dataset_name)
             else:
@@ -133,8 +134,7 @@ class GDRN_Lite(LightningLite):
 
             data_loader = build_gdrn_test_loader(cfg, dataset_name, train_objs=train_obj_names)
             data_loader = self.setup_dataloaders(data_loader, replace_sampler=False, move_to_device=False)
-
-            gdrn_save_result_of_dataset(
+            out_dict = gdrn_save_pose_of_dataset(
                 cfg,
                 model,
                 data_loader,
@@ -144,24 +144,40 @@ class GDRN_Lite(LightningLite):
                 amp_test=cfg.TEST.AMP_TEST,
             )
 
+            pdb.set_trace()
+
+
     def do_test(self, cfg, model, epoch=None, iteration=None):
         results = OrderedDict()
         model_name = osp.basename(cfg.MODEL.WEIGHTS).split(".")[0]
+        
         for dataset_name in cfg.DATASETS.TEST:
             if epoch is not None and iteration is not None:
                 eval_out_dir = osp.join(cfg.OUTPUT_DIR, f"inference_epoch_{epoch}_iter_{iteration}", dataset_name)
+                pose_out_dir = osp.join(cfg.OUTPUT_DIR, f"pose_results_epoch_{epoch}_iter_{iteration}", dataset_name)
+            
             else:
                 eval_out_dir = osp.join(cfg.OUTPUT_DIR, f"inference_{model_name}", dataset_name)
+                pose_out_dir = osp.join(cfg.OUTPUT_DIR, f"pose_results_{model_name}", dataset_name)
+            
             evaluator = self.get_evaluator(cfg, dataset_name, eval_out_dir)
             evaluator.lite_self = self
             data_loader = build_gdrn_test_loader(cfg, dataset_name, train_objs=evaluator.train_objs)
             data_loader = self.setup_dataloaders(data_loader, replace_sampler=False, move_to_device=False)
-            results_i = gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=cfg.TEST.AMP_TEST)
+            
+            import pdb
+            pdb.set_trace()
+            
+            results_i = gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, pose_out_dir, amp_test=cfg.TEST.AMP_TEST)
+            
+           
+
             results[dataset_name] = results_i
 
         if len(results) == 1:
             results = list(results.values())[0]
         return results
+
 
     def do_train(self, cfg, args, model, optimizer, renderer=None, resume=False):
         model.train()
@@ -174,7 +190,7 @@ class GDRN_Lite(LightningLite):
         # load data ===================================
         train_dset_names = cfg.DATASETS.TRAIN
         data_loader = build_gdrn_train_loader(cfg, train_dset_names)
-
+        
         data_loader_iter = iter(data_loader)
 
         # load 2nd train dataloader if needed
@@ -271,6 +287,7 @@ class GDRN_Lite(LightningLite):
 
                 if np.random.rand() < train_2_ratio:
                     data = next(data_loader_2_iter)
+                    
                 else:
                     data = next(data_loader_iter)
 
@@ -343,12 +360,16 @@ class GDRN_Lite(LightningLite):
                     scheduler.step()
 
                 if (
-                    cfg.TEST.EVAL_PERIOD > 0
-                    and epoch != last_evaled_epoch
-                    and (epoch % cfg.TEST.EVAL_PERIOD == 0)
-                    and iteration != max_iter - 1
+                    cfg.TEST.EVAL_PERIOD > 0 and iteration > 5
+                    # and epoch != last_evaled_epoch
+                    # # and (epoch % cfg.TEST.EVAL_PERIOD == 0)
+                    # and iteration != max_iter - 1
                 ):
                     last_evaled_epoch = epoch
+                    # import pdb
+                    # pdb.set_trace()
+                    # self.do_save_results(cfg, model, epoch, iteration)
+                   
                     if ema is not None:
                         ema.update_attr(model)
                         self.do_test(

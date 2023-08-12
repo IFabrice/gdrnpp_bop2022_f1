@@ -665,7 +665,7 @@ class GDRN_Evaluator(DatasetEvaluator):
         return results
 
 
-def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False):
+def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, output_dir, amp_test=False):
     """Run model on the data_loader and evaluate the metrics with evaluator.
     Also benchmark the inference speed of `model.forward` accurately. The model
     will be used in eval mode.
@@ -698,8 +698,21 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
     start_time = time.perf_counter()
     total_compute_time = 0
     total_process_time = 0
+
+    ## my changes
+    results_to_return = {}
+    inputs_to_return = {}
+    result_name = "pred_pose_and_inputs.pkl"
+    mmcv.mkdir_or_exist(output_dir)  # NOTE: should be the same as the evaluation output dir
+    result_path = osp.join(output_dir, result_name)
+    if osp.exists(result_path):
+        logger.warning("{} exists, overriding!".format(result_path))
+    ## 
     with inference_context(model), torch.no_grad():
         for idx, inputs in enumerate(data_loader):
+
+            if idx > 50:
+                break
             if idx == num_warmup:
                 start_time = time.perf_counter()
                 total_compute_time = 0
@@ -748,6 +761,12 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             cur_compute_time = time.perf_counter() - start_compute_time
+
+            ##   my changes 
+            results_to_return[idx] = out_dict
+            inputs_to_return[idx] = inputs
+
+            ##
             total_compute_time += cur_compute_time
             # NOTE: added
             outputs = [{} for _ in range(len(inputs))]
@@ -806,7 +825,233 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
     # Replace it by an empty dict instead to make it easier for downstream code to handle
     if results is None:
         results = {}
-    return results
+
+
+    ### my changes: dump the pose data in the path 
+    save_dict = {"inputs": inputs_to_return, "outputs": results_to_return}
+    mmcv.dump(save_dict, result_path)
+    ###
+    
+    return results_to_return
+    # return results
+
+## the function I added to return the results of the out_dict
+
+def gdrn_save_pose_of_dataset(cfg, model, data_loader, output_dir, dataset_name, train_objs=None, amp_test=False):
+    """
+    Run model (in eval mode) on the data_loader and save predictions
+    Args:
+        cfg: config
+        model (nn.Module): a module which accepts an object from
+            `data_loader` and returns some outputs. It will be temporarily set to `eval` mode.
+
+            If you wish to evaluate a model in `training` mode instead, you can
+            wrap the given model and override its behavior of `.eval()` and `.train()`.
+        data_loader: an iterable object with a length.
+            The elements it generates will be the inputs to the model.
+    Returns:
+        The return value of `evaluator.evaluate()`
+    """
+    num_devices = get_world_size()
+    logger = logging.getLogger(__name__)
+    logger.info("Calculating the output of the model for {} images in validation".format(len(data_loader)))
+
+    net_cfg = cfg.MODEL.POSE_NET
+
+    # NOTE: dataset name should be the same as TRAIN to get the correct meta
+    _metadata = MetadataCatalog.get(dataset_name)
+    data_ref = ref.__dict__[_metadata.ref_key]
+    obj_names = _metadata.objs
+    obj_ids = [data_ref.obj2id[obj_name] for obj_name in obj_names]
+
+    if cfg.TEST.get("COLOR_AUG", False):
+        result_name = "results_color_aug.pkl"
+    else:
+        result_name = "pose_results.pkl"
+    mmcv.mkdir_or_exist(output_dir)  # NOTE: should be the same as the evaluation output dir
+    result_path = osp.join(output_dir, result_name)
+    if osp.exists(result_path):
+        logger.warning("{} exists, overriding!".format(result_path))
+
+    total = len(data_loader)  # inference data loader must have a fixed length
+    result_dict = {}          # dict to save the results
+    VIS = cfg.TEST.VIS  # NOTE: change this for debug/vis
+    if VIS:
+        import cv2
+        from lib.vis_utils.image import vis_image_mask_bbox_cv2, vis_image_bboxes_cv2, grid_show
+        from core.utils.my_visualizer import MyVisualizer, _GREY, _GREEN, _BLUE, _RED
+        from core.utils.data_utils import crop_resize_by_warp_affine
+
+        obj_models = {
+            data_ref.obj2id[_obj_name]: inout.load_ply(m_path, vertex_scale=data_ref.vertex_scale)
+            for _obj_name, m_path in zip(data_ref.objects, data_ref.model_paths)
+        }
+        # key is [str(obj_id)]["bbox3d_and_center"]
+        kpts3d_dict = data_ref.get_keypoints_3d()
+        dset_dicts = DatasetCatalog.get(dataset_name)
+        scene_im_id_to_gt_index = {d["scene_im_id"]: i for i, d in enumerate(dset_dicts)}
+
+    test_bbox_type = cfg.TEST.TEST_BBOX_TYPE
+    if test_bbox_type == "gt":
+        bbox_key = "bbox"
+    else:
+        bbox_key = f"bbox_{test_bbox_type}"
+
+
+
+    for idx, inputs in enumerate(data_loader):
+        # process input ----------------------------------------------------------
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        batch = batch_data(cfg, inputs, phase="test")
+        if train_objs is not None:
+            roi_labels = batch["roi_cls"].cpu().numpy().tolist()
+            cur_obj_names = [obj_names[_l] for _l in roi_labels]  # obj names in this test batch
+            if all(_obj not in train_objs for _obj in cur_obj_names):
+                continue
+        # NOTE: do model inference -----------------------------
+
+        file_names = batch["file_name"]  ## list of image directories of the dataset in batch
+
+        if cfg.INPUT.WITH_DEPTH:
+            inp = torch.cat([batch["roi_img"], batch["roi_depth"]], dim=1)
+        else:
+            inp = batch["roi_img"]
+        with autocast(enabled=amp_test):  # gdrn amp_test seems slower
+            import pdb
+            pdb.set_trace()
+            out_dict = model(
+                inp,
+                roi_classes=batch["roi_cls"],
+                roi_cams=batch["roi_cam"],
+                roi_whs=batch["roi_wh"],
+                roi_centers=batch["roi_center"],
+                resize_ratios=batch["resize_ratio"],
+                roi_coord_2d=batch.get("roi_coord_2d", None),
+                roi_coord_2d_rel=batch.get("roi_coord_2d_rel", None),
+                roi_extents=batch.get("roi_extent", None),
+            )
+
+            result_dict[idx] = out_dict
+
+
+
+                # if VIS:  # vis -----------------------------------------------------------
+                #     vis_dict = {}
+                #     image_path = _input["file_name"][i_inst]
+                #     image = mmcv.imread(image_path, "color")
+                #     img_vis = vis_image_mask_bbox_cv2(
+                #         image,
+                #         [masks_np[i_out]],
+                #         [_input[bbox_key][i_inst].detach().cpu().numpy()],
+                #         labels=[data_ref.id2obj[cur_obj_id]],
+                #     )
+                #     vis_dict[f"im_{bbox_key}_mask_vis"] = img_vis[:, :, ::-1]
+                #     if "full_mask" in out_dict:
+                #         img_vis_full_mask = vis_image_mask_bbox_cv2(
+                #             image,
+                #             [full_masks_np[i_out]],
+                #             [_input[bbox_key][i_inst].detach().cpu().numpy()],
+                #             labels=[data_ref.id2obj[cur_obj_id]],
+                #         )
+                #         vis_dict[f"im_{bbox_key}_mask_full"] = img_vis_full_mask[:, :, ::-1]
+
+                #     K = _input["cam"][i_inst].detach().cpu().numpy()
+                #     kpt3d = kpts3d_dict[str(cur_obj_id)]["bbox3d_and_center"]
+                #     # gt pose
+                #     gt_idx = scene_im_id_to_gt_index[scene_im_id]
+                #     gt_dict = dset_dicts[gt_idx]
+                #     has_gt = False
+                #     if "annotations" in gt_dict:
+                #         has_gt = True
+                #         gt_annos = gt_dict["annotations"]
+                #         # find the gt anno ---------------
+                #         found_gt = False
+                #         for gt_anno in gt_annos:
+                #             gt_label = gt_anno["category_id"]
+                #             gt_obj = obj_names[gt_label]
+                #             gt_obj_id = data_ref.obj2id[gt_obj]
+                #             if cur_obj_id == gt_obj_id:
+                #                 found_gt = True
+                #                 gt_pose = gt_anno["pose"]
+                #                 break
+                #         if not found_gt:
+                #             kpt2d_gt = None
+                #         else:
+                #             kpt2d_gt = misc.project_pts(kpt3d, K, gt_pose[:3, :3], gt_pose[:3, 3])
+
+                #     pose_est = np.hstack([cur_res["R"], cur_res["t"].reshape(3, 1)])
+                #     kpt2d_est = misc.project_pts(kpt3d, K, pose_est[:3, :3], pose_est[:3, 3])
+
+                #     proj_pts_est = misc.project_pts(obj_models[cur_obj_id]["pts"], K, cur_res["R"], cur_res["t"])
+                #     mask_pose_est = misc.points2d_to_mask(proj_pts_est, im_H, im_W)
+
+                #     image_mask_pose_est = vis_image_mask_cv2(image, mask_pose_est, color="yellow")
+                #     image_mask_pose_est = vis_image_bboxes_cv2(
+                #         image_mask_pose_est,
+                #         [_input[bbox_key][i_inst].detach().cpu().numpy()],
+                #         labels=[data_ref.id2obj[cur_obj_id]],
+                #     )
+                #     vis_dict[f"im_{bbox_key}_mask_pose_est"] = image_mask_pose_est[:, :, ::-1]
+
+                #     maxx, maxy, minx, miny = 0, 0, 1000, 1000
+                #     for i in range(len(kpt2d_est)):
+                #         maxx, maxy, minx, miny = (
+                #             max(maxx, kpt2d_est[i][0]),
+                #             max(maxy, kpt2d_est[i][1]),
+                #             min(minx, kpt2d_est[i][0]),
+                #             min(miny, kpt2d_est[i][1]),
+                #         )
+                #         if has_gt and kpt2d_gt is not None:
+                #             maxx, maxy, minx, miny = (
+                #                 max(maxx, kpt2d_gt[i][0]),
+                #                 max(maxy, kpt2d_gt[i][1]),
+                #                 min(minx, kpt2d_gt[i][0]),
+                #                 min(miny, kpt2d_gt[i][1]),
+                #             )
+                #     center_ = np.array([(minx + maxx) / 2, (miny + maxy) / 2])
+                #     scale_ = max(maxx - minx, maxy - miny) * 1.5  # * 3  # + 10
+                #     CROP_SIZE = 256
+                #     im_zoom = crop_resize_by_warp_affine(image_mask_pose_est, center_, scale_, CROP_SIZE)
+
+                #     zoom_kpt2d_est = kpt2d_est.copy()
+                #     for i in range(len(kpt2d_est)):
+                #         zoom_kpt2d_est[i][0] = (kpt2d_est[i][0] - (center_[0] - scale_ / 2)) * CROP_SIZE / scale_
+                #         zoom_kpt2d_est[i][1] = (kpt2d_est[i][1] - (center_[1] - scale_ / 2)) * CROP_SIZE / scale_
+
+                #     if has_gt and kpt2d_gt is not None:
+                #         zoom_kpt2d_gt = kpt2d_gt.copy()
+                #         for i in range(len(kpt2d_gt)):
+                #             zoom_kpt2d_gt[i][0] = (kpt2d_gt[i][0] - (center_[0] - scale_ / 2)) * CROP_SIZE / scale_
+                #             zoom_kpt2d_gt[i][1] = (kpt2d_gt[i][1] - (center_[1] - scale_ / 2)) * CROP_SIZE / scale_
+                #     visualizer = MyVisualizer(im_zoom[:, :, ::-1], _metadata)
+                #     linewidth = 3
+                #     if has_gt and kpt2d_gt is not None:
+                #         visualizer.draw_bbox3d_and_center(
+                #             zoom_kpt2d_gt,
+                #             top_color=_BLUE,
+                #             bottom_color=_GREY,
+                #             linewidth=linewidth,
+                #             draw_center=True,
+                #         )
+                #     visualizer.draw_bbox3d_and_center(
+                #         zoom_kpt2d_est, top_color=_RED, bottom_color=_GREY, linewidth=linewidth, draw_center=True
+                #     )
+
+                #     im_gt_pred = visualizer.get_output().get_image()
+                #     vis_dict["zoom_im_gt_pred"] = im_gt_pred
+
+                #     show_titles = [_k for _k, _v in vis_dict.items()]
+                #     show_ims = [_v for _k, _v in vis_dict.items()]
+                #     ncol = 2
+                #     nrow = int(np.ceil(len(show_ims) / ncol))
+                #     grid_show(show_ims, show_titles, row=nrow, col=ncol)
+                # # end vis ----------------------------------------------------------------------
+
+        # -----------------------------------------------------------------------------------------
+     
+    mmcv.dump(result_dict, result_path)
+    logger.info("Results saved to {}".format(result_path))
 
 
 def gdrn_save_result_of_dataset(cfg, model, data_loader, output_dir, dataset_name, train_objs=None, amp_test=False):
@@ -873,6 +1118,8 @@ def gdrn_save_result_of_dataset(cfg, model, data_loader, output_dir, dataset_nam
     num_warmup = min(5, logging_interval - 1, total - 1)
     start_time = time.perf_counter()
     total_compute_time = 0
+
+    output = []                             # a list that outputs poses
     with inference_context(model), torch.no_grad():
         for idx, inputs in enumerate(data_loader):
             if idx == num_warmup:
@@ -890,11 +1137,16 @@ def gdrn_save_result_of_dataset(cfg, model, data_loader, output_dir, dataset_nam
                 if all(_obj not in train_objs for _obj in cur_obj_names):
                     continue
             # NOTE: do model inference -----------------------------
+
+            file_names = batch["file_name"]  ## list of image directories of the dataset in batch
+
             if cfg.INPUT.WITH_DEPTH:
                 inp = torch.cat([batch["roi_img"], batch["roi_depth"]], dim=1)
             else:
                 inp = batch["roi_img"]
             with autocast(enabled=amp_test):  # gdrn amp_test seems slower
+                import pdb
+                pdb.set_trace()
                 out_dict = model(
                     inp,
                     roi_classes=batch["roi_cls"],
@@ -906,12 +1158,18 @@ def gdrn_save_result_of_dataset(cfg, model, data_loader, output_dir, dataset_nam
                     roi_coord_2d_rel=batch.get("roi_coord_2d_rel", None),
                     roi_extents=batch.get("roi_extent", None),
                 )
+
+
+
+
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             cur_compute_time = time.perf_counter() - start_compute_time
             total_compute_time += cur_compute_time
 
             # convert raw mask (out size) to mask in image ---------------------------------------------------------------------
+            
+            print(list(out_dict.keys()))
             raw_masks = out_dict["mask"]
             mask_probs = get_out_mask(cfg, raw_masks)
 
@@ -1098,8 +1356,11 @@ def gdrn_save_result_of_dataset(cfg, model, data_loader, output_dir, dataset_nam
                 logger.info(
                     "Inference done {}/{}. {:.4f} s / img. ETA={}".format(idx + 1, total, seconds_per_img, str(eta))
                 )
-
+            logger.info("The inference might be done. Can't be sure though")
     # Measure the time only for this worker (before the synchronization barrier)
+    # if (1): 
+    #     return
+
     total_time = int(time.perf_counter() - start_time)
     total_time_str = str(datetime.timedelta(seconds=total_time))
     # NOTE this format is parsed by grep

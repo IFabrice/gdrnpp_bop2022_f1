@@ -1,3 +1,4 @@
+import pdb
 import copy
 import logging
 import time
@@ -197,10 +198,13 @@ class GDRN(nn.Module):
             raise ValueError(f"Unknown trans type: {pnp_net_cfg.TRANS_TYPE}")
 
         if not do_loss:  # test
+            pdb.set_trace()
             out_dict = {"rot": pred_ego_rot, "trans": pred_trans}
-            if cfg.TEST.USE_PNP or cfg.TEST.SAVE_RESULTS_ONLY or cfg.TEST.USE_DEPTH_REFINE:
+            # if cfg.TEST.USE_PNP or cfg.TEST.SAVE_RESULTS_ONLY or cfg.TEST.USE_DEPTH_REFINE:
+            if True:
                 # TODO: move the pnp/ransac inside forward
                 out_dict.update({"mask": mask, "coor_x": coor_x, "coor_y": coor_y, "coor_z": coor_z, "region": region})
+                pdb.set_trace()
         else:
             out_dict = {}
             assert (

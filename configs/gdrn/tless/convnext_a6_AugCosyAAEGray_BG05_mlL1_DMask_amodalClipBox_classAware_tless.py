@@ -146,4 +146,4 @@ VAL = dict(
     USE_BOP=True,  # whether to use bop toolkit
 )
 
-TEST = dict(EVAL_PERIOD=0, VIS=False, TEST_BBOX_TYPE="est")  # gt | est
+TEST = dict(EVAL_PERIOD=1, VIS=True, TEST_BBOX_TYPE="est")  # gt | est

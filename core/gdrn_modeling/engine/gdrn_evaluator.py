@@ -665,7 +665,7 @@ class GDRN_Evaluator(DatasetEvaluator):
         return results
 
 
-def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False):
+def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, output_dir, amp_test=False):
     """Run model on the data_loader and evaluate the metrics with evaluator.
     Also benchmark the inference speed of `model.forward` accurately. The model
     will be used in eval mode.
@@ -698,8 +698,15 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
     start_time = time.perf_counter()
     total_compute_time = 0
     total_process_time = 0
+
+    ## my changes
+    mmcv.mkdir_or_exist(output_dir)  # NOTE: should be the same as the evaluation output dir
+    # results_to_return = {}
+    # inputs_to_return = {}
+    ## 
     with inference_context(model), torch.no_grad():
         for idx, inputs in enumerate(data_loader):
+
             if idx == num_warmup:
                 start_time = time.perf_counter()
                 total_compute_time = 0
@@ -748,6 +755,17 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             cur_compute_time = time.perf_counter() - start_compute_time
+
+            ##   my changes 
+            result_name = "pred_pose_and_inputs_idx_{}.pkl".format(idx)
+            result_path = osp.join(output_dir, result_name)
+            if osp.exists(result_path):
+                logger.warning("{} exists, overriding!".format(result_path))
+
+            save_dict = {"inputs": inputs, "outputs": out_dict}
+            mmcv.dump(save_dict, result_path)
+
+            ##
             total_compute_time += cur_compute_time
             # NOTE: added
             outputs = [{} for _ in range(len(inputs))]
@@ -806,7 +824,16 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=False
     # Replace it by an empty dict instead to make it easier for downstream code to handle
     if results is None:
         results = {}
-    return results
+
+
+    ### my changes: dump the pose data in the path 
+
+    ###
+    
+    return results_to_return
+    # return results
+
+## the function I added to return the results of the out_dict
 
 
 def gdrn_save_result_of_dataset(cfg, model, data_loader, output_dir, dataset_name, train_objs=None, amp_test=False):

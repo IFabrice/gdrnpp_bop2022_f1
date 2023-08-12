@@ -147,16 +147,24 @@ class GDRN_Lite(LightningLite):
     def do_test(self, cfg, model, epoch=None, iteration=None):
         results = OrderedDict()
         model_name = osp.basename(cfg.MODEL.WEIGHTS).split(".")[0]
+        
         for dataset_name in cfg.DATASETS.TEST:
             if epoch is not None and iteration is not None:
                 eval_out_dir = osp.join(cfg.OUTPUT_DIR, f"inference_epoch_{epoch}_iter_{iteration}", dataset_name)
+                pose_out_dir = osp.join(cfg.OUTPUT_DIR, f"pose_results_epoch_{epoch}_iter_{iteration}", dataset_name)
+            
             else:
                 eval_out_dir = osp.join(cfg.OUTPUT_DIR, f"inference_{model_name}", dataset_name)
+                pose_out_dir = osp.join(cfg.OUTPUT_DIR, f"pose_results_{model_name}", dataset_name)
+            
             evaluator = self.get_evaluator(cfg, dataset_name, eval_out_dir)
             evaluator.lite_self = self
             data_loader = build_gdrn_test_loader(cfg, dataset_name, train_objs=evaluator.train_objs)
             data_loader = self.setup_dataloaders(data_loader, replace_sampler=False, move_to_device=False)
-            results_i = gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, amp_test=cfg.TEST.AMP_TEST)
+            
+            results_i = gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, pose_out_dir, amp_test=cfg.TEST.AMP_TEST)
+            
+           
             results[dataset_name] = results_i
 
         if len(results) == 1:
@@ -342,11 +350,17 @@ class GDRN_Lite(LightningLite):
                     storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
                     scheduler.step()
 
-                if (
-                    cfg.TEST.EVAL_PERIOD > 0
+                if (  
+                    (cfg.TEST.EVAL_PERIOD > 0
                     and epoch != last_evaled_epoch
                     and (epoch % cfg.TEST.EVAL_PERIOD == 0)
+                    and iteration != max_iter - 1) or (
+                    
+                    cfg.TEST.EVAL_PERIOD > 0
+                    and epoch != last_evaled_epoch
+                    and (epoch == 1)
                     and iteration != max_iter - 1
+                    )
                 ):
                     last_evaled_epoch = epoch
                     if ema is not None:

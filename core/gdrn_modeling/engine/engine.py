@@ -359,7 +359,7 @@ class GDRN_Lite(LightningLite):
                     cfg.TEST.EVAL_PERIOD > 0
                     and epoch != last_evaled_epoch
                     and (epoch == 1)
-                    and iteration != max_iter - 1
+                    and iteration == max_iter - 1
                     )
                 ):
                     last_evaled_epoch = epoch

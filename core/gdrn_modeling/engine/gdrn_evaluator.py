@@ -826,12 +826,8 @@ def gdrn_inference_on_dataset(cfg, model, data_loader, evaluator, output_dir, am
         results = {}
 
 
-    ### my changes: dump the pose data in the path 
-
-    ###
     
-    return results_to_return
-    # return results
+    return results
 
 ## the function I added to return the results of the out_dict
 

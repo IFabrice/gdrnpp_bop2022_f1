@@ -240,12 +240,12 @@ def get_split_params(datasets_path, dataset_name, split, split_type=None):
                 "kinect": (400, 400),
                 "canon": (1900, 1900),
                 "render_reconst": (1280, 1024),
-                "pbr": (720, 540),
+                "pbr": (720, 1280),   #New edit
                 "synthetless": (400, 400),
             },
             "test": {
-                "primesense": (720, 540),
-                "kinect": (720, 540),
+                "primesense": (720, 1280), #New edit
+                "kinect": (720, 1280),
                 "canon": (2560, 1920),
             },
         }[split][split_type]

@@ -63,7 +63,7 @@ class TLESS_PBR_Dataset:
         self.label2cat = {label: cat for cat, label in self.cat2label.items()}
         self.obj2label = OrderedDict((obj, obj_id) for obj_id, obj in enumerate(self.objs))
 
-        self.scenes = [f"{i:06d}" for i in range(50)]
+        self.scenes = [f"{i:06d}" for i in range(3)]
 
     def __call__(self):
         """Load light-weight instance annotations of all images into a list of
@@ -308,8 +308,8 @@ SPLITS_TLESS_PBR = dict(
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
-        height=540,
-        width=720,
+        height=720,  #New edit
+        width=1280,  #New edit
         use_cache=True,
         num_to_load=-1,
         filter_invalid=True,
@@ -331,8 +331,8 @@ for obj in ref.tless.objects:
                 scale_to_meter=0.001,
                 with_masks=True,  # (load masks but may not use it)
                 with_depth=True,  # (load depth path here, but may not use it)
-                height=540,
-                width=720,
+                height=720,  #New edit
+                width=1280,  #New edit
                 use_cache=True,
                 num_to_load=-1,
                 filter_invalid=True,

@@ -29,8 +29,8 @@ model_reconst_dir = osp.join(dataset_root, "models_reconst")
 model_eval_dir = osp.join(dataset_root, "models_eval")
 vertex_scale = 0.001
 # object info
-objects = [str(i) for i in range(1, 31)]
-id2obj = {i: str(i) for i in range(1, 31)}
+objects = [str(i) for i in range(1, 15)]    #New edit: making objects from 31 to 15
+id2obj = {i: str(i) for i in range(1, 15)}  #New edit: making objects from 31 to 15
 
 obj_num = len(id2obj)
 obj2id = {_name: _id for _id, _name in id2obj.items()}
@@ -44,8 +44,8 @@ tr_real_width = 400
 tr_real_height = 400
 tr_render_width = 1280
 tr_render_height = 1024
-width = te_width = 720  # pbr size
-height = te_height = 540  # pbr size
+width = te_width = 1280  #New edit pbr size
+height = te_height = 720  #New edit pbr size
 zNear = 0.25
 zFar = 6.0
 tr_real_center = (tr_real_height / 2, tr_real_width / 2)

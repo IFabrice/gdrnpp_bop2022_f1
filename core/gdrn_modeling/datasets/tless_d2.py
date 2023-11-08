@@ -1,3 +1,4 @@
+import pdb
 import hashlib
 import logging
 import os
@@ -70,7 +71,7 @@ class TLESS_TRAIN_Dataset(object):
         self.obj2label = OrderedDict((obj, obj_id) for obj, obj_id in enumerate(self.objs))
         ##########################################################
 
-        self.scenes = [f"{i:06d}" for i in range(1, 31)]
+        self.scenes = [f"{i:06d}" for i in range(1, 16)]    #New edit
 
     def __call__(self):
         """Load light-weight instance annotations of all images into a list of
@@ -109,6 +110,7 @@ class TLESS_TRAIN_Dataset(object):
             scene_id = int(scene)
             scene_root = osp.join(self.dataset_root, scene)
 
+            # pdb.set_trace()
             gt_dict = mmcv.load(osp.join(scene_root, "scene_gt.json"))
             gt_info_dict = mmcv.load(osp.join(scene_root, "scene_gt_info.json"))
             cam_dict = mmcv.load(osp.join(scene_root, "scene_camera.json"))
@@ -279,9 +281,12 @@ def get_tless_metadata(obj_names, ref_key):
 
     cur_sym_infos = {}  # label based key
     loaded_models_info = data_ref.get_models_info()
+    # pdb.set_trace()
 
+    
     for i, obj_name in enumerate(obj_names):
         obj_id = data_ref.obj2id[obj_name]
+
         model_info = loaded_models_info[str(obj_id)]
         if "symmetries_discrete" in model_info or "symmetries_continuous" in model_info:
             sym_transforms = misc.get_symmetry_transformations(model_info, max_sym_disc_step=0.01)
@@ -305,8 +310,8 @@ SPLITS_TLESS = dict(
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=True,  # (load depth path here, but may not use it)
-        height=400,
-        width=400,
+        height=1280,   #New edit from 400
+        width=720,    #New edit from 400
         cache_dir=osp.join(PROJ_ROOT, ".cache"),
         use_cache=True,
         num_to_load=-1,
@@ -321,7 +326,7 @@ SPLITS_TLESS = dict(
         scale_to_meter=0.001,
         with_masks=True,  # (load masks but may not use it)
         with_depth=False,  # NOTE: we didn't prepare depth yet
-        height=540,
+        height=540,  #New edit
         width=720,
         cache_dir=osp.join(PROJ_ROOT, ".cache"),
         use_cache=True,
@@ -337,8 +342,8 @@ for obj in ref.tless.objects:
     for split in ["train_primesense", "train_primesense_rescaled"]:
         name = "tless_{}_{}".format(obj, split)
         if "rescaled" in name:
-            height = 540
-            width = 720
+            height = 720  #New edit
+            width = 1280  #New edit
             with_depth = False
         else:
             height = width = 400
@@ -378,6 +383,9 @@ def register_with_name_cfg(name, data_cfg=None):
     else:
         assert data_cfg is not None, f"dataset name {name} is not registered"
         used_cfg = data_cfg
+    
+    # pdb.set_trace()
+
     DatasetCatalog.register(name, TLESS_TRAIN_Dataset(used_cfg))
     # something like eval_types
     MetadataCatalog.get(name).set(
@@ -392,7 +400,6 @@ def register_with_name_cfg(name, data_cfg=None):
 
 def get_available_datasets():
     return list(SPLITS_TLESS.keys())
-
 
 #### tests ###############################################
 def test_vis():

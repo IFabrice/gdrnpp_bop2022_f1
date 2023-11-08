@@ -1,3 +1,4 @@
+import pdb
 import logging
 import os
 import os.path as osp
@@ -173,7 +174,17 @@ class GDRN_Lite(LightningLite):
 
         # load data ===================================
         train_dset_names = cfg.DATASETS.TRAIN
+
+
+        # try: 
         data_loader = build_gdrn_train_loader(cfg, train_dset_names)
+
+        # pdb.set_trace()
+
+        # except Exception as e:
+            # print(type(e), e)
+            # pdb.set_trace()
+            # data_loader = build_gdrn_train_loader(cfg, train_dset_names)
 
         data_loader_iter = iter(data_loader)
 

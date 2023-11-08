@@ -71,7 +71,7 @@ def get_dataset_params(name, model_type="", train_type="", test_type="", cam_typ
 
         p["cam_params_path"] = pjoin(tless_tk_path, "cam", "camera_" + p["cam_type"] + ".yml")
         if p["test_type"] in ["primesense", "kinect"]:
-            p["test_im_size"] = (720, 540)
+            p["test_im_size"] = (720, 1280)
         elif p["test_type"] == "canon":
             p["test_im_size"] = (2560, 1920)
 
